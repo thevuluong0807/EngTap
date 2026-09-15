@@ -22,12 +22,12 @@
 
 ## Chạy local
 
-Mở trực tiếp `index.html` bằng trình duyệt. Không cần cài dependency hoặc chạy server.
+Mở trực tiếp `engtap.html` bằng trình duyệt. Không cần cài dependency hoặc chạy server.
 
 ## Cấu trúc
 
 ```text
-index.html    giao diện, CSS và logic game
+engtap.html   giao diện, CSS và logic game
 words-db.js   database từ vựng và nghĩa tiếng Việt
 ```
 
