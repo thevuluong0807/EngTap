@@ -22,12 +22,12 @@ Game luyện gõ và phát âm tiếng Anh: các từ rơi xuống như giọt m
 
 ## Chạy local
 
-Mở trực tiếp `engtap.html` bằng trình duyệt. Không cần cài dependency hoặc chạy server.
+Mở trực tiếp `index.html` bằng trình duyệt. Không cần cài dependency hoặc chạy server.
 
 ## Cấu trúc
 
 ```text
-engtap.html    giao diện, CSS và logic game
+index.html    giao diện, CSS và logic game
 words-db.js   database từ vựng và nghĩa tiếng Việt
 ```
 
