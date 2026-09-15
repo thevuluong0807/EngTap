@@ -428,6 +428,7 @@ function playBubblePop(){
 const state = {
   mode: "listen", level: "B1", missLimit: 10, hintEnabled: false,
   running: false, paused: false, score: 0, misses: 0,
+  audioRequestId: 0, currentAudio: null,
   voiceVolume: 1, musicVolume: 0.6,
   words: [],
   spawnTimer: 0, lastTs: 0,
@@ -453,6 +454,7 @@ const infiniteChk = document.getElementById("infiniteChk");
 const hintChk = document.getElementById("hintChk");
 infiniteChk.onchange = () => missLimitInput.disabled = infiniteChk.checked;
 
+let startTransition = false;
 document.getElementById("startBtn").onclick = closeSettingsAndPlay;
 document.getElementById("settingsBtn").onclick = openPauseModal;
 document.getElementById("backToMenuBtn").onclick = openSettings;
@@ -473,6 +475,8 @@ function openSettings(){
 }
 
 function closeSettingsAndPlay(){
+  if (startTransition) return;
+  startTransition = true;
   state.mode = document.querySelector("#modeChoices .active").dataset.mode;
   state.level = document.querySelector("#levelChoices .active").dataset.level;
   state.missLimit = infiniteChk.checked ? Infinity : Math.max(1, parseInt(missLimitInput.value) || 10);
@@ -486,6 +490,7 @@ function closeSettingsAndPlay(){
     gameWrap.classList.remove("blurred");
     stopDemo();
     startGame();
+    startTransition = false;
   }, 420);
 }
 
@@ -617,12 +622,27 @@ function speak(word){
     speechSynthesis.cancel(); speechSynthesis.speak(u);
   }catch(e){}
 }
-async function playPronunciation(word){
+function stopPronunciation(){
+  state.audioRequestId++;
+  if (state.currentAudio){
+    state.currentAudio.pause();
+    state.currentAudio.currentTime = 0;
+    state.currentAudio = null;
+  }
+  try{ speechSynthesis.cancel(); }catch(e){}
+}
+async function playPronunciation(word, obj){
+  if (state.mode !== "listen" || !state.running || !obj || !isActive(obj)) return;
+  stopPronunciation();
+  const requestId = state.audioRequestId;
   const url = await getCambridgeAudioUrl(word);
+  if (requestId !== state.audioRequestId || state.mode !== "listen" || !state.running || !isActive(obj)) return;
   if (url){
     const a = new Audio(url);
+    state.currentAudio = a;
     a.volume = state.voiceVolume;
-    a.play().catch(()=>speak(word));
+    a.onended = () => { if (state.currentAudio === a) state.currentAudio = null; };
+    a.play().catch(()=>{ if (requestId === state.audioRequestId) speak(word); });
   } else speak(word);
 }
 
@@ -659,11 +679,7 @@ function spawnWord(){
   state.words.push(obj);
   render(obj);
   if (state.mode === "meaning") w.querySelector(".meaning-below").textContent = meaning;
-  if (state.mode === "listen"){
-    playPronunciation(word);
-    // keep replaying the pronunciation every 3s while this word is still on screen (not yet typed)
-    obj.audioTimer = setInterval(() => { if (!state.paused) playPronunciation(obj.word); }, 3000);
-  }
+  if (state.mode === "listen" && isActive(obj)) activateListenWord(obj);
   return obj;
 }
 
@@ -690,16 +706,26 @@ function render(obj){
   obj.el.classList.toggle("active", active);
 }
 
+function activateListenWord(obj){
+  if (state.mode !== "listen" || !obj || !isActive(obj)) return;
+  if (obj.audioTimer) clearInterval(obj.audioTimer);
+  playPronunciation(obj.word, obj);
+  obj.audioTimer = setInterval(() => {
+    if (state.running && !state.paused && !obj.locked && isActive(obj)) playPronunciation(obj.word, obj);
+  }, 5000);
+}
+
 document.getElementById("stageArea").addEventListener("click", (e)=>{
   const sp = e.target.closest(".speaker");
   if (sp){
     const obj = state.words.find(o=>o.id==sp.dataset.id);
-    if (obj) playPronunciation(obj.word);
+    if (obj && isActive(obj)) playPronunciation(obj.word, obj);
   }
 });
 
 function removeWord(obj, {popMeaning=false} = {}){
   if (obj.audioTimer) clearInterval(obj.audioTimer);
+  if (isActive(obj)) stopPronunciation();
   if (popMeaning){
     const stage = document.getElementById("stageArea");
     const pop = document.createElement("div");
@@ -714,7 +740,10 @@ function removeWord(obj, {popMeaning=false} = {}){
   obj.el.remove();
   state.words = state.words.filter(o => o.id !== obj.id);
   const next = state.words[0];
-  if (next) render(next); // hand the "active" highlight / speaker icon to the next word in line
+  if (next){
+    render(next); // hand the "active" highlight / speaker icon to the next word in line
+    if (state.mode === "listen") activateListenWord(next);
+  }
 }
 
 // Whole phrase mismatched (or overflow): shake red, then wipe the input clean so the player
@@ -724,6 +753,7 @@ function triggerWrong(obj, lettersOnly){
   obj.el.classList.remove("shake");
   void obj.el.offsetWidth;
   obj.el.classList.add("shake");
+  if (state.mode === "listen" && isActive(obj)) playPronunciation(obj.word, obj);
   if (state.hintEnabled) obj.hintCount = Math.min(obj.hintCount + 1, lettersOnly.length - 1);
   setTimeout(() => {
     obj.typedChars = state.hintEnabled ? lettersOnly.slice(0, obj.hintCount) : "";
@@ -808,18 +838,31 @@ function handleBackspace(){
   obj.typedChars = obj.typedChars.slice(0, -1);
   render(obj);
 }
+const mobileInput = document.getElementById("mobileInput");
+let composingInput = false, ignoreComposedInput = false;
+mobileInput.addEventListener("compositionstart", () => { composingInput = true; });
+mobileInput.addEventListener("compositionend", () => {
+  composingInput = false;
+  ignoreComposedInput = true;
+  setTimeout(() => { ignoreComposedInput = false; }, 0);
+});
 window.addEventListener("keydown", (e) => {
+  if (e.isComposing || e.target === mobileInput || document.activeElement === mobileInput) return;
   if (e.key === "Backspace"){ handleBackspace(); e.preventDefault(); return; }
   handleChar(e.key);
 });
 
-const mobileInput = document.getElementById("mobileInput");
 document.getElementById("tapCatcher").addEventListener("click", () => { if (state.running) mobileInput.focus(); });
 mobileInput.addEventListener("beforeinput", (e) => {
   if (e.inputType === "deleteContentBackward") handleBackspace();
 });
 mobileInput.addEventListener("input", () => {
   const val = mobileInput.value;
+  if (composingInput || ignoreComposedInput){
+    ignoreComposedInput = false;
+    mobileInput.value = "";
+    return;
+  }
   if (val) handleChar(val[val.length-1]);
   mobileInput.value = "";
 });
