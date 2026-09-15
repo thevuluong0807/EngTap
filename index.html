@@ -1,5 +1,933 @@
 <!doctype html>
+<html lang="vi">
+<head>
 <meta charset="utf-8">
-<meta http-equiv="refresh" content="0; url=engtap.html">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>EngTap</title>
-<script>location.replace("engtap.html");</script>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%A7%EF%B8%8F%3C/text%3E%3C/svg%3E">
+<style>
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{
+    background:#000;
+    color:#eef0fa; font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
+    display:flex; align-items:center; justify-content:center; min-height:100vh; padding:16px;
+    overflow:hidden;
+  }
+  .wrap{display:flex; flex-direction:column; align-items:center; gap:14px}
+  .brand{display:flex; align-items:center; gap:8px; font-size:22px; font-weight:700; letter-spacing:1px; color:#e8f5ee}
+  .brand .cloud{font-size:26px; filter:drop-shadow(0 0 8px rgba(120,200,255,.5))}
+
+  /* ---- Frame: the whole game lives inside this centered block ---- */
+  .game-frame{
+    position:relative;
+    width:72vw; height:71vh;
+    min-width:547px; max-width:1032px;
+    min-height:518px; max-height:864px;
+    border-radius:24px; overflow:hidden;
+    box-shadow:0 25px 70px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.06);
+  }
+  @media (max-width:1100px){
+    .game-frame{width:96vw; height:76vh; min-width:460px}
+  }
+  @media (max-width:640px){
+    .game-frame{width:98vw; height:81vh; min-width:0; border-radius:18px}
+    .brand{font-size:18px}
+  }
+
+  /* ---- Nature background (simple, muted so falling text stays readable) ---- */
+  #bgLayer{
+    position:absolute; inset:0; z-index:0; overflow:hidden;
+    background:
+      radial-gradient(ellipse at 50% 0%, rgba(255,255,255,.05), transparent 60%),
+      linear-gradient(180deg,#123524 0%,#0e2c1f 45%,#0a1f16 100%);
+  }
+  /* misty clouds along the very top of the window - two layers drifting at different speeds
+     and directions for a stratified "layer upon layer" cloud bank */
+  #bgLayer::before{
+    content:""; position:absolute; top:-16%; left:-16%; right:-16%; height:36%; z-index:1;
+    background:
+      radial-gradient(ellipse 230px 75px at 18% 50%, rgba(255,255,255,.34), transparent 72%),
+      radial-gradient(ellipse 270px 85px at 58% 34%, rgba(255,255,255,.3), transparent 72%),
+      radial-gradient(ellipse 210px 70px at 90% 55%, rgba(255,255,255,.32), transparent 72%);
+    filter:blur(22px);
+    animation: cloudDriftFar 60s ease-in-out infinite alternate;
+    pointer-events:none;
+  }
+  #bgLayer::after{
+    content:""; position:absolute; top:-6%; left:-12%; right:-12%; height:28%; z-index:1;
+    background:
+      radial-gradient(ellipse 140px 46px at 10% 55%, rgba(255,255,255,.48), transparent 68%),
+      radial-gradient(ellipse 160px 50px at 40% 38%, rgba(255,255,255,.42), transparent 68%),
+      radial-gradient(ellipse 130px 44px at 70% 58%, rgba(255,255,255,.46), transparent 68%),
+      radial-gradient(ellipse 150px 48px at 95% 40%, rgba(255,255,255,.4), transparent 68%);
+    filter:blur(12px);
+    animation: cloudDriftNear 30s ease-in-out infinite alternate;
+    pointer-events:none;
+  }
+  @keyframes cloudDriftFar{ 0%{transform:translateX(0)} 100%{transform:translateX(6%)} }
+  @keyframes cloudDriftNear{ 0%{transform:translateX(0)} 100%{transform:translateX(-9%)} }
+
+  /* tree/foliage silhouettes hugging the bottom edge and both sides - layered canopy blobs
+     (base + a small lighter glint per clump) that fade out toward the play area so they never
+     compete with the falling words in the center */
+  .tree-deco{ position:absolute; z-index:1; pointer-events:none; }
+  .tree-side{
+    top:6%; bottom:0; width:16%;
+    -webkit-mask-image:linear-gradient(to right, black 40%, transparent 96%);
+    mask-image:linear-gradient(to right, black 40%, transparent 96%);
+    background-image:
+      radial-gradient(circle at 30% 9%,  rgba(17,54,31,.6) 0 10%, transparent 11%),
+      radial-gradient(circle at 22% 6%,  rgba(255,255,255,.16) 0 3%, transparent 4%),
+      radial-gradient(circle at 60% 19%, rgba(27,74,44,.55) 0 12%, transparent 13%),
+      radial-gradient(circle at 50% 14%, rgba(255,255,255,.14) 0 3.5%, transparent 4.5%),
+      radial-gradient(circle at 34% 35%, rgba(17,54,31,.55) 0 11%, transparent 12%),
+      radial-gradient(circle at 26% 30%, rgba(255,255,255,.14) 0 3%, transparent 4%),
+      radial-gradient(circle at 64% 51%, rgba(27,74,44,.5)  0 10%, transparent 11%),
+      radial-gradient(circle at 56% 46%, rgba(255,255,255,.12) 0 3%, transparent 4%),
+      radial-gradient(circle at 30% 69%, rgba(17,54,31,.5)  0 11%, transparent 12%),
+      radial-gradient(circle at 22% 64%, rgba(255,255,255,.12) 0 3%, transparent 4%),
+      radial-gradient(circle at 60% 85%, rgba(27,74,44,.45) 0 10%, transparent 11%),
+      radial-gradient(circle at 52% 80%, rgba(255,255,255,.1) 0 3%, transparent 4%);
+  }
+  .tree-side.tree-left{ left:0; }
+  .tree-side.tree-right{ right:0; transform:scaleX(-1); }
+  .tree-bottom{
+    left:0; right:0; bottom:5%; height:13%;
+    -webkit-mask-image:linear-gradient(to top, black 30%, transparent 96%);
+    mask-image:linear-gradient(to top, black 30%, transparent 96%);
+    background-image:
+      radial-gradient(circle at 8% 62%,  rgba(17,54,31,.55) 0 17%, transparent 18%),
+      radial-gradient(circle at 5% 52%,  rgba(255,255,255,.14) 0 4.5%, transparent 5.5%),
+      radial-gradient(circle at 22% 42%, rgba(27,74,44,.5) 0 15%, transparent 16%),
+      radial-gradient(circle at 18% 33%, rgba(255,255,255,.13) 0 4%, transparent 5%),
+      radial-gradient(circle at 38% 66%, rgba(17,54,31,.55) 0 16%, transparent 17%),
+      radial-gradient(circle at 34% 56%, rgba(255,255,255,.13) 0 4%, transparent 5%),
+      radial-gradient(circle at 55% 44%, rgba(27,74,44,.5) 0 14%, transparent 15%),
+      radial-gradient(circle at 51% 35%, rgba(255,255,255,.12) 0 4%, transparent 5%),
+      radial-gradient(circle at 70% 64%, rgba(17,54,31,.55) 0 16%, transparent 17%),
+      radial-gradient(circle at 66% 54%, rgba(255,255,255,.12) 0 4%, transparent 5%),
+      radial-gradient(circle at 86% 42%, rgba(27,74,44,.5) 0 15%, transparent 16%),
+      radial-gradient(circle at 82% 33%, rgba(255,255,255,.11) 0 4%, transparent 5%);
+  }
+  /* grass + tiny wildflowers right at the very bottom edge, fading up into the play area */
+  .grass-strip{
+    position:absolute; left:0; right:0; bottom:0; height:6%; z-index:2; pointer-events:none;
+    -webkit-mask-image:linear-gradient(to top, black 45%, transparent 100%);
+    mask-image:linear-gradient(to top, black 45%, transparent 100%);
+    background:
+      radial-gradient(circle at 6% 65%,  #fff 0 2px, transparent 3px),
+      radial-gradient(circle at 17% 35%, #ffd66e 0 2px, transparent 3px),
+      radial-gradient(circle at 31% 70%, #fff 0 1.6px, transparent 2.6px),
+      radial-gradient(circle at 46% 40%, #ff99bb 0 2px, transparent 3px),
+      radial-gradient(circle at 61% 68%, #ffd66e 0 1.6px, transparent 2.6px),
+      radial-gradient(circle at 76% 38%, #fff 0 2px, transparent 3px),
+      radial-gradient(circle at 90% 66%, #ff99bb 0 1.6px, transparent 2.6px),
+      linear-gradient(180deg, rgba(36,112,62,0) 0%, rgba(36,112,62,.6) 50%, rgba(19,68,38,.75) 100%);
+  }
+  .leaf{position:absolute; top:-10%; opacity:.16; font-size:22px; animation:drift linear infinite; will-change:transform; z-index:2}
+  @keyframes drift{
+    0%{transform:translateY(0) translateX(0) rotate(0deg)}
+    100%{transform:translateY(115vh) translateX(30px) rotate(340deg)}
+  }
+
+  /* ---- Game content wrap (gets blurred while settings popup is open) ---- */
+  #gameWrap{position:absolute; inset:0; z-index:1; transition:filter .35s ease}
+  #gameWrap.blurred{filter:blur(9px) brightness(.6) saturate(.8); pointer-events:none}
+
+  .hud{
+    position:relative; z-index:2; display:flex; justify-content:space-between; align-items:center;
+    padding:10px 14px; font-size:13px; color:#c9d6cf;
+    background:rgba(6,20,13,.45); backdrop-filter:blur(6px);
+  }
+  .hud b{color:#fff}
+  .btn-sec{background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.25); color:#fff; padding:6px 12px; border-radius:8px; cursor:pointer; font-size:12px}
+  .btn-sec:hover{background:rgba(255,255,255,.2)}
+  #pausePanel #resumeBtn,#pausePanel #pauseRestartBtn{font-family:inherit;font-size:15px;font-weight:800}
+
+  #stageArea{position:relative; height:calc(100% - 40px); overflow:hidden}
+  #bambooBlow{position:absolute;z-index:5;left:calc(50% - 74px);bottom:8px;width:74px;height:42px;transform-origin:100% 50%;transform:rotate(var(--bamboo-angle,0deg));pointer-events:none;filter:drop-shadow(0 5px 5px rgba(0,0,0,.28))}
+  #bambooBlow::before{content:"";position:absolute;left:7px;right:0;top:7px;height:28px;border-radius:8px 18px 18px 8px;background:repeating-linear-gradient(90deg,#7cae5a 0 16px,#547f42 17px 21px,#98c876 22px 25px);box-shadow:inset 0 2px 0 rgba(255,255,255,.25),inset 0 -3px 5px rgba(38,77,35,.24)}
+  #bambooBlow::after{content:"";position:absolute;right:-3px;top:4px;width:16px;height:34px;border-radius:50%;background:linear-gradient(90deg,#365b35,#b0d584 45%,#4a743e);border:2px solid #365b35;box-shadow:inset 2px 0 rgba(255,255,255,.24),0 0 0 2px rgba(163,207,120,.4)}
+  #bambooBlow .bamboo-mouth{position:absolute;left:-1px;top:11px;width:18px;height:20px;border-radius:50%;background:#304f31;border:3px solid #86b865;z-index:1;box-shadow:inset 2px 0 rgba(255,255,255,.16)}
+  #bambooBlow.recoil{animation:bambooRecoil .2s cubic-bezier(.2,.8,.25,1)}
+  @keyframes bambooRecoil{0%,100%{transform:rotate(var(--bamboo-angle)) translateX(0)}35%{transform:rotate(var(--bamboo-angle)) translateX(-7px)}70%{transform:rotate(var(--bamboo-angle)) translateX(2px)}}
+  .dart-projectile{position:absolute;z-index:6;width:18px;height:2px;border-radius:2px;background:linear-gradient(90deg,transparent,#fff,#b8eaff);box-shadow:0 0 8px #8ddcff;transform-origin:left center;animation:dartFly .18s ease-out forwards;pointer-events:none}
+  @keyframes dartFly{to{left:var(--tx);top:var(--ty);opacity:.1}}
+  .impact-burst{position:absolute;z-index:6;width:16px;height:16px;border:2px solid rgba(220,248,255,.95);border-radius:50%;transform:translate(-50%,-50%) scale(.2);animation:waterBurst .32s ease-out forwards;pointer-events:none}
+  .impact-burst::before,.impact-burst::after{content:"";position:absolute;inset:2px;border-radius:50%;border:1px solid rgba(139,220,255,.7)}
+  .impact-burst::after{inset:-5px;border-color:rgba(190,239,255,.35)}
+  @keyframes waterBurst{to{transform:translate(-50%,-50%) scale(2.3);opacity:0}}
+  .falling{
+    position:absolute; top:-40px; white-space:nowrap; text-align:center; transform:translateX(-50%);
+    font-size:19px; padding:8px 16px; user-select:none; z-index:0;
+  }
+  /* liquid-glass droplet background: a faint, translucent pastel-blue blob behind the word (a
+     real droplet reads mostly through refraction/blur, not solid color) that pulses as if
+     falling, plus several small droplets (.drop-trail spans, shared by every word) splitting
+     off and streaking upward behind it - the same effect package for every falling word. */
+  .falling::before{
+    content:""; position:absolute; inset:0; z-index:-1;
+    border-radius:42% 58% 55% 45% / 34% 30% 70% 66%;
+    background:
+      radial-gradient(circle at 30% 20%,rgba(255,255,255,.42),transparent 42%),
+      radial-gradient(circle at 68% 82%,rgba(255,255,255,.16),transparent 55%),
+      linear-gradient(160deg,rgba(191,231,255,.28),rgba(125,196,240,.15) 55%,rgba(191,231,255,.07));
+    backdrop-filter:blur(10px) saturate(150%);-webkit-backdrop-filter:blur(10px) saturate(150%);
+    border:1px solid rgba(255,255,255,.28);box-shadow:0 5px 13px rgba(20,70,110,.14),inset 0 1px 4px rgba(255,255,255,.28);
+    animation:dropFall 2.2s cubic-bezier(.35,.1,.25,1) infinite;
+  }
+  .falling.active::before{ border-color:rgba(255,255,255,.5); box-shadow:0 7px 17px rgba(20,70,110,.26), inset 0 1px 5px rgba(255,255,255,.42); }
+  @keyframes dropFall{
+    0%,100%{transform:translateY(0) scale(1);border-radius:42% 58% 55% 45% / 34% 30% 70% 66%}
+    38%{transform:translateY(3px) scale(.97,1.04);border-radius:48% 52% 48% 52% / 42% 38% 62% 58%}
+    70%{transform:translateY(6px) scale(.94,1.09);border-radius:38% 62% 60% 40% / 30% 28% 72% 70%}
+  }
+  /* 6 droplets, spread across the whole width of the blob (not just its center), each
+     streaking upward on its own delay to feel like rain constantly splitting off behind it */
+  .drop-trail{
+    position:absolute; z-index:-1; top:-2px; transform:translateX(-50%);
+    width:6px; height:10px; border-radius:50%;
+    background:linear-gradient(180deg, rgba(214,240,255,.45), rgba(129,199,239,.1));
+    opacity:0; animation:rainTrail var(--trail-speed,1.1s) linear infinite;
+  }
+  @keyframes rainTrail{
+    0%{opacity:0;transform:translate(calc(-50% + var(--drift)),4px) scaleY(.4)}
+    22%{opacity:.7;transform:translate(calc(-50% + var(--drift)),0) scaleY(1)}
+    100%{opacity:0;transform:translate(calc(-50% + var(--drift)),34px) scaleY(2.4)}
+  }
+  .falling .word-text{letter-spacing:3px; font-family:'Consolas',monospace; font-weight:700; color:#f2f6f2; text-shadow:0 1px 3px rgba(0,0,0,.6)}
+  .falling .word-text .ch-pos{display:inline-block;min-width:.72em}
+  .falling.spelling .word-text .ch-pos{color:#aeb8c2}
+  .falling.spelling .word-text .ch-typed{color:#79e59a}
+  .falling .word-text .ch-typed{color:#fff}
+  .falling .word-text.correct .ch-typed{color:#7dffb0}
+  .falling .word-text .typed{color:#7dffb0} /* used by the decorative demo preview only */
+  .falling.shake{animation:shake .28s}
+  .falling.shake .word-text, .falling.shake .word-text .ch-typed, .falling.shake .word-text .ch-pos{color:#ff5c7a !important}
+  @keyframes shake{
+    0%,100%{margin-left:0}
+    20%{margin-left:-6px} 40%{margin-left:6px} 60%{margin-left:-4px} 80%{margin-left:4px}
+  }
+  .meaning-below{font-size:12px; color:#ffd166; margin-top:2px; opacity:.95}
+  .meaning-pop{
+    position:absolute; transform:translate(-50%,0); font-size:13px; color:#7dffb0;
+    font-weight:600; pointer-events:none; transition:opacity 1.1s ease, transform 1.1s ease;
+  }
+  .meaning-pop.fadeout{opacity:0; transform:translate(-50%,-24px) scale(1.04)}
+  .speaker{cursor:pointer; opacity:.8; margin-left:4px}
+  .speaker:hover{opacity:1}
+
+  .overlay{
+    position:absolute; inset:0; z-index:3; background:rgba(6,14,10,.85); display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:14px; text-align:center;
+  }
+  .overlay h2{margin:0; font-size:24px}
+  .hidden{display:none !important}
+  #mobileInput{position:absolute; opacity:0; height:1px; width:1px; pointer-events:none}
+  #tapCatcher{position:absolute; inset:0; z-index:4}
+
+  /* ---- Liquid-glass settings popup ---- */
+  #settingsModal, #pauseModal{position:absolute; inset:0; z-index:20; display:flex; align-items:center; justify-content:center; padding:16px}
+  #pauseModal{z-index:22}
+  .glass-panel{
+    position:relative; width:100%; max-width:340px; max-height:94%; overflow:auto;
+    background:linear-gradient(160deg, rgba(255,255,255,.16), rgba(255,255,255,.06));
+    backdrop-filter:blur(26px) saturate(190%); -webkit-backdrop-filter:blur(26px) saturate(190%);
+    border:1px solid rgba(255,255,255,.35); border-radius:26px;
+    padding:22px 20px 20px; box-shadow:0 10px 40px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.5);
+    color:#fff;
+  }
+  .glass-panel::before{
+    content:""; position:absolute; top:0; left:12%; right:12%; height:1px;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.9),transparent);
+  }
+  .glass-panel.pop-in{animation:popIn .55s cubic-bezier(.34,1.56,.64,1) both}
+  .glass-panel.pop-out{animation:popOut .42s cubic-bezier(.55,0,.85,.35) both}
+  @keyframes popIn{0%{transform:scale(.7); opacity:0}60%{transform:scale(1.06);opacity:1}100%{transform:scale(1)}}
+  @keyframes popOut{0%{transform:scale(1);opacity:1}40%{transform:scale(1.08)}100%{transform:scale(.15);opacity:0}}
+
+  .glass-panel h2{margin:0 0 2px; font-size:18px; text-align:center}
+  .glass-panel .hint{text-align:center; font-size:11px; color:rgba(255,255,255,.65); margin-bottom:16px}
+  .group{margin-bottom:16px}
+  .group label.title{display:block; font-size:11px; color:rgba(255,255,255,.7); margin-bottom:7px; text-transform:uppercase; letter-spacing:1px}
+  .choices{display:flex; flex-wrap:wrap; gap:7px}
+  .choice{
+    background:rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.25); color:#fff; padding:7px 12px;
+    border-radius:20px; cursor:pointer; font-size:12.5px; transition:.15s;
+  }
+  .choice:hover{background:rgba(255,255,255,.22)}
+  .choice.active{background:#6fe3a0; border-color:#6fe3a0; color:#04170c; font-weight:700}
+  .row{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
+  input[type=number]{
+    background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.3); color:#fff; padding:7px 10px;
+    border-radius:8px; width:90px; font-size:13px;
+  }
+  input[type=number]:disabled{opacity:.4}
+  input[type=range]{width:100%; accent-color:#6fe3a0}
+  input[type=range]:disabled{opacity:.4}
+  .checkline{display:flex; align-items:center; gap:6px; font-size:13px; color:rgba(255,255,255,.8); cursor:pointer}
+  .btn-main{
+    display:block; width:100%; margin-top:6px; background:linear-gradient(135deg,#6fe3a0,#4fc78a);
+    color:#04170c; border:none; padding:13px; border-radius:14px; font-size:15px; font-weight:800;
+    cursor:pointer; letter-spacing:.5px; box-shadow:0 6px 20px rgba(111,227,160,.35);
+  }
+  .btn-main:hover{filter:brightness(1.06)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand"><span class="cloud">🌧️</span> EngTap</div>
+
+  <div class="game-frame">
+    <div id="bgLayer">
+      <div class="tree-deco tree-side tree-left"></div>
+      <div class="tree-deco tree-side tree-right"></div>
+      <div class="tree-deco tree-bottom"></div>
+      <div class="grass-strip"></div>
+    </div>
+
+    <div id="gameWrap" class="blurred">
+      <div class="hud">
+        <div>Điểm: <b id="score">0</b></div>
+        <div>Bỏ lỡ: <b id="missCount">0</b>/<b id="missMax">10</b></div>
+        <button class="btn-sec" id="settingsBtn" title="Cài đặt">⚙️</button>
+      </div>
+      <div id="stageArea">
+        <div id="bambooBlow" aria-hidden="true"><span class="bamboo-mouth"></span></div>
+        <div id="tapCatcher"></div>
+        <div class="overlay hidden" id="gameOverOverlay">
+          <h2 id="gameOverTitle">Kết thúc!</h2>
+          <div id="gameOverStats" style="color:#c9d6cf"></div>
+          <button class="btn-main" style="width:auto;padding:12px 28px" id="backToMenuBtn">Về menu</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="settingsModal">
+      <div class="glass-panel pop-in" id="glassPanel">
+        <h2>🌧️ EngTap</h2>
+        <div class="hint">Gõ từ tiếng Anh trước khi nó rơi hết xuống</div>
+
+        <div class="group">
+          <label class="title">Chế độ chơi</label>
+          <div class="choices" id="modeChoices">
+            <div class="choice active" data-mode="listen">🔊 Nghe & gõ</div>
+            <div class="choice" data-mode="meaning">📖 Gõ theo nghĩa</div>
+            <div class="choice" data-mode="spelling">✍️ Gõ chính tả</div>
+          </div>
+        </div>
+        <div class="group">
+          <label class="title">Cấp độ từ vựng</label>
+          <div class="choices" id="levelChoices">
+            <div class="choice active" data-level="B1">B1</div>
+            <div class="choice" data-level="B2">B2</div>
+            <div class="choice" data-level="C1">C1</div>
+            <div class="choice" data-level="C2">C2</div>
+            <div class="choice" data-level="progressive">Tăng dần</div>
+            <div class="choice" data-level="chaos">Hỗn loạn</div>
+          </div>
+        </div>
+        <div class="group">
+          <label class="title">Giới hạn số từ rơi hết</label>
+          <div class="row">
+            <input type="number" id="missLimit" value="10" min="1">
+            <label class="checkline"><input type="checkbox" id="infiniteChk"> Vô hạn</label>
+          </div>
+        </div>
+        <div class="group">
+          <label class="checkline"><input type="checkbox" id="hintChk"> Gợi ý (mỗi khi gõ sai 1 lần sẽ gợi ý 1 ký tự)</label>
+        </div>
+        <button class="btn-main" id="startBtn">BẮT ĐẦU</button>
+      </div>
+    </div>
+
+    <div id="pauseModal" class="hidden">
+      <div class="glass-panel" id="pausePanel">
+        <button class="btn-sec" id="closePauseBtn" style="position:absolute; top:14px; right:14px; padding:4px 9px; border-radius:50%">✕</button>
+        <h2>⚙️ Cài đặt</h2>
+        <div class="hint">Trò chơi đang tạm dừng</div>
+
+        <div class="group">
+          <label class="title">Âm lượng giọng đọc</label>
+          <input type="range" id="voiceVolume" min="0" max="100" value="100">
+        </div>
+        <div class="group">
+          <label class="title">Âm lượng nhạc nền <span style="opacity:.6; text-transform:none">(sắp có)</span></label>
+          <input type="range" id="musicVolume" min="0" max="100" value="60" disabled>
+        </div>
+        <button class="btn-main" id="resumeBtn">▶ Tiếp tục</button>
+        <button class="btn-sec" id="pauseRestartBtn" style="width:100%; margin-top:10px; padding:10px">Kết thúc</button>
+      </div>
+    </div>
+  </div>
+  <input id="mobileInput" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+</div>
+
+<script src="words-db.js"></script>
+<script>
+(() => {
+"use strict";
+
+// ---------------- Vocabulary ----------------
+// Main word bank lives in words-db.js (304 words, crawled from public CEFR word lists +
+// translated via the MyMemory API) and is loaded as a plain <script> tag above this one so it
+// still works when the page is opened directly as a file:// URL (fetch() of a local JSON file
+// is blocked by CORS in that case, a <script> global is not). This tiny inline list is only a
+// fallback in case words-db.js failed to load.
+const FALLBACK_WORDS = {
+  B1: [["hospital","bệnh viện"],["weather","thời tiết"],["holiday","kỳ nghỉ"],["kitchen","nhà bếp"]],
+  B2: [["environment","môi trường"],["achievement","thành tựu"],["opportunity","cơ hội"]],
+  C1: [["sophisticated","tinh vi, phức tạp"],["inevitable","không thể tránh khỏi"]],
+  C2: [["ubiquitous","có mặt khắp nơi"],["ephemeral","phù du, ngắn ngủi"]],
+};
+const WORDS = (typeof WORDS_DB !== "undefined") ? WORDS_DB : FALLBACK_WORDS;
+const LEVEL_ORDER = ["B1","B2","C1","C2"];
+
+// ---------------- Nature background particles ----------------
+(function initLeaves(){
+  const layer = document.getElementById("bgLayer");
+  const icons = ["🍃","🌿","🍂"];
+  for (let i=0;i<7;i++){
+    const el = document.createElement("div");
+    el.className = "leaf";
+    el.textContent = icons[i % icons.length];
+    el.style.left = (5 + Math.random()*90) + "%";
+    el.style.animationDuration = (14 + Math.random()*14) + "s";
+    el.style.animationDelay = (-Math.random()*20) + "s";
+    layer.appendChild(el);
+  }
+})();
+
+// ---------------- Water droplet sound (synth, no asset file) ----------------
+function playDroplet(){
+  try{
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = "sine";
+    o.frequency.setValueAtTime(1100, ctx.currentTime);
+    o.frequency.exponentialRampToValueAtTime(280, ctx.currentTime + 0.16);
+    g.gain.setValueAtTime(0.28, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.28);
+    o.connect(g); g.connect(ctx.destination);
+    o.start(); o.stop(ctx.currentTime + 0.3);
+    o.onended = () => ctx.close();
+  }catch(e){}
+}
+function playBubblePop(){
+  try{
+    const ctx = new (window.AudioContext||window.webkitAudioContext)(), now = ctx.currentTime;
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = "sine"; o.frequency.setValueAtTime(520, now); o.frequency.exponentialRampToValueAtTime(150, now + .11);
+    g.gain.setValueAtTime(.16, now); g.gain.exponentialRampToValueAtTime(.001, now + .13);
+    o.connect(g); g.connect(ctx.destination); o.start(); o.stop(now + .14); o.onended = () => ctx.close();
+  }catch(e){}
+}
+
+// ---------------- State ----------------
+const state = {
+  mode: "listen", level: "B1", missLimit: 10, hintEnabled: false,
+  running: false, paused: false, score: 0, misses: 0,
+  audioRequestId: 0, currentAudio: null,
+  voiceVolume: 1, musicVolume: 0.6,
+  words: [],
+  spawnTimer: 0, lastTs: 0,
+  progressiveStage: 0, progressiveScoreThresh: 60,
+  audioCache: new Map(),
+};
+
+// ---------------- Menu wiring ----------------
+document.querySelectorAll("#modeChoices .choice").forEach(el=>{
+  el.onclick = () => {
+    document.querySelectorAll("#modeChoices .choice").forEach(e=>e.classList.remove("active"));
+    el.classList.add("active"); state.mode = el.dataset.mode;
+  };
+});
+document.querySelectorAll("#levelChoices .choice").forEach(el=>{
+  el.onclick = () => {
+    document.querySelectorAll("#levelChoices .choice").forEach(e=>e.classList.remove("active"));
+    el.classList.add("active"); state.level = el.dataset.level;
+  };
+});
+const missLimitInput = document.getElementById("missLimit");
+const infiniteChk = document.getElementById("infiniteChk");
+const hintChk = document.getElementById("hintChk");
+infiniteChk.onchange = () => missLimitInput.disabled = infiniteChk.checked;
+
+let startTransition = false;
+document.getElementById("startBtn").onclick = closeSettingsAndPlay;
+document.getElementById("settingsBtn").onclick = openPauseModal;
+document.getElementById("backToMenuBtn").onclick = openSettings;
+
+// ---------------- Settings popup open/close (liquid-glass bounce) ----------------
+const modal = document.getElementById("settingsModal");
+const panel = document.getElementById("glassPanel");
+const gameWrap = document.getElementById("gameWrap");
+
+function openSettings(){
+  document.getElementById("gameOverOverlay").classList.add("hidden");
+  modal.classList.remove("hidden");
+  gameWrap.classList.add("blurred");
+  panel.classList.remove("pop-out");
+  void panel.offsetWidth;
+  panel.classList.add("pop-in");
+  startDemo();
+}
+
+function closeSettingsAndPlay(){
+  if (startTransition) return;
+  startTransition = true;
+  state.mode = document.querySelector("#modeChoices .active").dataset.mode;
+  state.level = document.querySelector("#levelChoices .active").dataset.level;
+  state.missLimit = infiniteChk.checked ? Infinity : Math.max(1, parseInt(missLimitInput.value) || 10);
+  state.hintEnabled = hintChk.checked;
+
+  playDroplet();
+  panel.classList.remove("pop-in");
+  panel.classList.add("pop-out");
+  setTimeout(() => {
+    modal.classList.add("hidden");
+    gameWrap.classList.remove("blurred");
+    stopDemo();
+    startGame();
+    startTransition = false;
+  }, 420);
+}
+
+// ---------------- In-game settings/pause popup (liquid-glass bounce) ----------------
+const pauseModal = document.getElementById("pauseModal");
+const pausePanel = document.getElementById("pausePanel");
+const voiceVolumeInput = document.getElementById("voiceVolume");
+const musicVolumeInput = document.getElementById("musicVolume");
+voiceVolumeInput.addEventListener("input", () => { state.voiceVolume = voiceVolumeInput.value / 100; });
+musicVolumeInput.addEventListener("input", () => { state.musicVolume = musicVolumeInput.value / 100; });
+
+function pauseGame(){
+  state.paused = true;
+  state.running = false; // breaks the requestAnimationFrame chain in tick()
+}
+function resumeGame(){
+  state.paused = false;
+  if (!state.running){
+    state.running = true;
+    state.lastTs = 0;
+    requestAnimationFrame(tick);
+  }
+}
+
+function openPauseModal(){
+  pauseGame();
+  gameWrap.classList.add("blurred");
+  pauseModal.classList.remove("hidden");
+  pausePanel.classList.remove("pop-out");
+  void pausePanel.offsetWidth;
+  pausePanel.classList.add("pop-in");
+}
+function closePauseModal(){
+  pausePanel.classList.remove("pop-in");
+  pausePanel.classList.add("pop-out");
+  setTimeout(() => {
+    pauseModal.classList.add("hidden");
+    gameWrap.classList.remove("blurred");
+    resumeGame();
+  }, 420);
+}
+document.getElementById("closePauseBtn").onclick = closePauseModal;
+document.getElementById("resumeBtn").onclick = closePauseModal;
+document.getElementById("pauseRestartBtn").onclick = () => {
+  pausePanel.classList.remove("pop-in");
+  pausePanel.classList.add("pop-out");
+  setTimeout(() => {
+    pauseModal.classList.add("hidden");
+    endGame(false);
+    openSettings(); // keeps gameWrap blurred and shows the start popup
+  }, 420);
+};
+
+// ---------------- Demo preview (runs blurred behind the popup) ----------------
+let demoRunning=false, demoWords=[], demoRAF=null, demoSpawnTimer=0, demoLastTs=0;
+// shared markup so every falling word - real gameplay or demo preview - gets the same droplet effect
+function dropTrailHtml(){
+  return Array.from({length:12}, () => {
+    const left = 8 + Math.random()*84, drift = Math.round((Math.random()-.5)*18), size = 3 + Math.random()*4;
+    return `<span class="drop-trail" style="left:${left}%;width:${size}px;height:${size*1.5}px;--drift:${drift}px;--trail-speed:${.75+Math.random()*.8}s;animation-delay:${Math.random()*.8}s"></span>`;
+  }).join('');
+}
+const DEMO_WORDS=["hello","coffee","travel","dream","study","sunny","garden","music"];
+
+function startDemo(){
+  if (demoRunning) return;
+  demoRunning = true; demoWords = []; demoSpawnTimer = 0; demoLastTs = 0;
+  demoRAF = requestAnimationFrame(demoTick);
+}
+function stopDemo(){
+  demoRunning = false;
+  if (demoRAF) cancelAnimationFrame(demoRAF);
+  demoWords.forEach(o => o.el.remove());
+  demoWords = [];
+}
+function demoSpawn(){
+  const word = DEMO_WORDS[Math.floor(Math.random()*DEMO_WORDS.length)];
+  const el = document.createElement("div");
+  el.className = "falling demo";
+  const left = 10 + Math.random()*80;
+  el.style.left = left + "%";
+  el.innerHTML = dropTrailHtml() + '<div class="word-text"></div>';
+  document.getElementById("stageArea").appendChild(el);
+  demoWords.push({el, word, typed:0, top:-40, speed:16+Math.random()*10, typeTimer:0.4});
+}
+function demoTick(ts){
+  if (!demoRunning) return;
+  if (!demoLastTs) demoLastTs = ts;
+  const dt = (ts - demoLastTs)/1000; demoLastTs = ts;
+  const h = document.getElementById("stageArea").clientHeight;
+
+  demoSpawnTimer -= dt;
+  if (demoSpawnTimer <= 0 && demoWords.length < 3){ demoSpawn(); demoSpawnTimer = 1.5 + Math.random(); }
+
+  for (const o of [...demoWords]){
+    o.top += o.speed*dt; o.el.style.top = o.top + "px";
+    o.typeTimer -= dt;
+    if (o.typeTimer <= 0 && o.typed < o.word.length){ o.typed++; o.typeTimer = 0.16 + Math.random()*0.18; }
+    let html = "";
+    for (let i=0;i<o.word.length;i++) html += i < o.typed ? `<span class="typed">${o.word[i]}</span>` : "_";
+    o.el.querySelector(".word-text").innerHTML = html;
+    if (o.top > h || o.typed >= o.word.length){ o.el.remove(); demoWords = demoWords.filter(x=>x!==o); }
+  }
+  demoRAF = requestAnimationFrame(demoTick);
+}
+
+// ---------------- Audio: Cambridge pronunciation via CORS proxy, TTS fallback ----------------
+async function getCambridgeAudioUrl(word){
+  const key = word.toLowerCase();
+  if (state.audioCache.has(key)) return state.audioCache.get(key);
+  const target = `https://dictionary.cambridge.org/dictionary/english/${encodeURIComponent(key.split(" ")[0])}`;
+  const proxied = `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}`;
+  let url = null;
+  try{
+    const res = await fetch(proxied, {signal: AbortSignal.timeout(4000)});
+    if (res.ok){
+      const html = await res.text();
+      const m = html.match(/<source[^>]+type="audio\/mpeg"[^>]+src="([^"]+)"/i);
+      if (m) url = m[1].startsWith("http") ? m[1] : `https://dictionary.cambridge.org${m[1]}`;
+    }
+  }catch(e){ /* fallback below */ }
+  state.audioCache.set(key, url);
+  return url;
+}
+function speak(word){
+  try{
+    const u = new SpeechSynthesisUtterance(word);
+    u.lang = "en-US"; u.rate = 0.9; u.volume = state.voiceVolume;
+    speechSynthesis.cancel(); speechSynthesis.speak(u);
+  }catch(e){}
+}
+function stopPronunciation(){
+  state.audioRequestId++;
+  if (state.currentAudio){
+    state.currentAudio.pause();
+    state.currentAudio.currentTime = 0;
+    state.currentAudio = null;
+  }
+  try{ speechSynthesis.cancel(); }catch(e){}
+}
+async function playPronunciation(word, obj){
+  if (state.mode !== "listen" || !state.running || !obj || !isActive(obj)) return;
+  stopPronunciation();
+  const requestId = state.audioRequestId;
+  const url = await getCambridgeAudioUrl(word);
+  if (requestId !== state.audioRequestId || state.mode !== "listen" || !state.running || !isActive(obj)) return;
+  if (url){
+    const a = new Audio(url);
+    state.currentAudio = a;
+    a.volume = state.voiceVolume;
+    a.onended = () => { if (state.currentAudio === a) state.currentAudio = null; };
+    a.play().catch(()=>{ if (requestId === state.audioRequestId) speak(word); });
+  } else speak(word);
+}
+
+// ---------------- Word pool ----------------
+function poolForLevel(level){
+  if (level === "chaos") return LEVEL_ORDER.flatMap(l => WORDS[l]);
+  if (level === "progressive") return WORDS[LEVEL_ORDER[state.progressiveStage]];
+  return WORDS[level];
+}
+function pickWord(){
+  const pool = poolForLevel(state.level);
+  const [word, meaning] = pool[Math.floor(Math.random()*pool.length)];
+  return { word, meaning };
+}
+
+// ---------------- Falling word object ----------------
+const BASE_SPEED = 28; // px/sec, constant so timing stays predictable
+let uid = 0;
+function spawnWord(){
+  const {word, meaning} = pickWord();
+  const stage = document.getElementById("stageArea");
+  const w = document.createElement("div");
+  w.className = `falling${state.mode === "spelling" ? " spelling" : ""}`;
+  const left = 8 + Math.random()*84;
+  w.style.left = left + "%";
+  w.innerHTML = dropTrailHtml() + `<div class="word-text"></div>` + (state.mode==="meaning" ? `<div class="meaning-below"></div>` : "");
+  stage.appendChild(w);
+
+  const speed = BASE_SPEED; // same speed for every word, every mode — only word difficulty changes
+
+  const obj = { id: ++uid, el: w, word, meaning, typedChars: "", status: "typing", hintCount: 0,
+    locked: false, audioTimer: null, top: -40, speed, left,
+    lettersLen: word.replace(/[^a-zA-Z']/g,"").length };
+  state.words.push(obj);
+  render(obj);
+  if (state.mode === "meaning") w.querySelector(".meaning-below").textContent = meaning;
+  if (state.mode === "listen" && isActive(obj)) activateListenWord(obj);
+  return obj;
+}
+
+function isActive(obj){ return state.words[0] === obj; }
+
+function render(obj){
+  const chars = obj.word.split("");
+  let typedIdx = 0, html = "";
+  for (const ch of chars){
+    if (ch === " "){
+      html += `<span style="display:inline-block;width:14px"></span>`;
+    } else {
+      const shown = state.mode === "spelling" ? ch : (typedIdx < obj.typedChars.length ? obj.typedChars[typedIdx] : "_");
+      const typed = typedIdx < obj.typedChars.length ? " ch-typed" : "";
+      html += `<span class="ch-pos${typed}" data-char-index="${typedIdx}">${shown}</span>`;
+      typedIdx++;
+    }
+  }
+  const active = isActive(obj);
+  const sp = active ? ` <span class="speaker" title="Nghe lại" data-id="${obj.id}">🔊</span>` : "";
+  const wordTextEl = obj.el.querySelector(".word-text");
+  wordTextEl.innerHTML = html + (state.mode==="listen" ? sp : "");
+  wordTextEl.classList.toggle("correct", obj.status === "correct");
+  obj.el.classList.toggle("active", active);
+}
+
+function activateListenWord(obj){
+  if (state.mode !== "listen" || !obj || !isActive(obj)) return;
+  if (obj.audioTimer) clearInterval(obj.audioTimer);
+  playPronunciation(obj.word, obj);
+  obj.audioTimer = setInterval(() => {
+    if (state.running && !state.paused && !obj.locked && isActive(obj)) playPronunciation(obj.word, obj);
+  }, 5000);
+}
+
+document.getElementById("stageArea").addEventListener("click", (e)=>{
+  const sp = e.target.closest(".speaker");
+  if (sp){
+    const obj = state.words.find(o=>o.id==sp.dataset.id);
+    if (obj && isActive(obj)) playPronunciation(obj.word, obj);
+  }
+});
+
+function removeWord(obj, {popMeaning=false} = {}){
+  if (obj.audioTimer) clearInterval(obj.audioTimer);
+  if (isActive(obj)) stopPronunciation();
+  if (popMeaning){
+    const stage = document.getElementById("stageArea");
+    const pop = document.createElement("div");
+    pop.className = "meaning-pop";
+    pop.style.left = obj.left + "%";
+    pop.style.top = obj.top + "px";
+    pop.textContent = obj.meaning;
+    stage.appendChild(pop);
+    requestAnimationFrame(()=> pop.classList.add("fadeout"));
+    setTimeout(()=> pop.remove(), 1300);
+  }
+  obj.el.remove();
+  state.words = state.words.filter(o => o.id !== obj.id);
+  const next = state.words[0];
+  if (next){
+    render(next); // hand the "active" highlight / speaker icon to the next word in line
+    if (state.mode === "listen") activateListenWord(next);
+  }
+}
+
+// Whole phrase mismatched (or overflow): shake red, then wipe the input clean so the player
+// retypes from scratch. With hint mode on, each mistake reveals one more correct character.
+function triggerWrong(obj, lettersOnly){
+  obj.locked = true;
+  obj.el.classList.remove("shake");
+  void obj.el.offsetWidth;
+  obj.el.classList.add("shake");
+  if (state.mode === "listen" && isActive(obj)) playPronunciation(obj.word, obj);
+  if (state.hintEnabled) obj.hintCount = Math.min(obj.hintCount + 1, lettersOnly.length - 1);
+  setTimeout(() => {
+    obj.typedChars = state.hintEnabled ? lettersOnly.slice(0, obj.hintCount) : "";
+    obj.status = "typing";
+    obj.locked = false;
+    obj.el.classList.remove("shake");
+    render(obj);
+  }, 300);
+}
+
+// ---------------- Typing input (desktop keyboard + mobile virtual keyboard) ----------------
+// Always types into the frontmost (earliest-spawned) word. Every keystroke is shown white
+// immediately - correctness is only checked once the word reaches its full length (whole-phrase
+// match -> green; mismatch -> red) or the player keeps typing past that length (overflow -> red).
+function handleChar(key){
+  if (!state.running) return;
+  if (key.length !== 1 || !/[a-zA-Z']/.test(key)) return;
+  const k = key.toLowerCase();
+
+  const obj = state.words[0];
+  if (!obj || obj.locked) return;
+  const lettersOnly = obj.word.replace(/[^a-zA-Z']/g,"").toLowerCase();
+  fireDart(obj, Math.min(obj.typedChars.length, lettersOnly.length - 1));
+
+  if (obj.typedChars.length >= lettersOnly.length){
+    triggerWrong(obj, lettersOnly); // overflow: typed more characters than the word has
+    return;
+  }
+
+  const typedIndex = obj.typedChars.length;
+  obj.typedChars += k;
+  render(obj);
+
+  if (state.mode === "spelling" && k !== lettersOnly[typedIndex]){
+    triggerWrong(obj, lettersOnly); // spelling mode rejects the wrong character immediately
+    return;
+  }
+
+  if (obj.typedChars.length === lettersOnly.length){
+    if (obj.typedChars === lettersOnly){
+      obj.status = "correct";
+      render(obj);
+      setTimeout(() => {
+        state.score += lettersOnly.length * 10;
+        document.getElementById("score").textContent = state.score;
+        if (state.level === "progressive" && state.score >= state.progressiveScoreThresh * (state.progressiveStage+1)
+            && state.progressiveStage < LEVEL_ORDER.length-1){
+          state.progressiveStage++;
+        }
+        removeWord(obj, {popMeaning: state.mode === "listen" || state.mode === "spelling"});
+      }, 220);
+    } else {
+      triggerWrong(obj, lettersOnly); // whole phrase typed, but it doesn't match
+    }
+  }
+}
+function fireDart(obj, charIndex){
+  const stage = document.getElementById("stageArea"), sr = stage.getBoundingClientRect();
+  const target = obj.el.querySelector(`[data-char-index="${charIndex}"]`) || obj.el.querySelector(".word-text");
+  const tr = target.getBoundingClientRect(), x = sr.width/2, y = sr.height-29, tx = tr.left-sr.left+tr.width/2, ty = tr.top-sr.top+tr.height/2;
+  const dart = document.createElement("span"), angle = Math.atan2(ty-y, tx-x)*180/Math.PI;
+  const bamboo = document.getElementById("bambooBlow");
+  bamboo.style.setProperty("--bamboo-angle", `${angle}deg`);
+  bamboo.classList.remove("recoil"); void bamboo.offsetWidth; bamboo.classList.add("recoil");
+  setTimeout(() => bamboo.classList.remove("recoil"), 220);
+  dart.className = "dart-projectile"; dart.style.left = `${x}px`; dart.style.top = `${y}px`;
+  dart.style.setProperty("--tx", `${tx}px`); dart.style.setProperty("--ty", `${ty}px`); dart.style.transform = `rotate(${angle}deg)`;
+  stage.appendChild(dart);
+  setTimeout(() => {
+    const current = obj.el.isConnected ? obj.el.querySelector(`[data-char-index="${charIndex}"]`) : null;
+    const cr = current ? current.getBoundingClientRect() : null;
+    const hitX = cr ? cr.left-sr.left+cr.width/2 : tx;
+    const hitY = cr ? cr.top-sr.top+cr.height/2 : ty;
+    const burst = document.createElement("span"); burst.className = "impact-burst"; burst.style.left = `${hitX}px`; burst.style.top = `${hitY}px`;
+    stage.appendChild(burst); playBubblePop(); setTimeout(() => burst.remove(), 340); dart.remove();
+  }, 180);
+}
+function handleBackspace(){
+  if (!state.running) return;
+  const obj = state.words[0];
+  if (!obj || obj.locked || obj.typedChars.length === 0) return;
+  obj.typedChars = obj.typedChars.slice(0, -1);
+  render(obj);
+}
+const mobileInput = document.getElementById("mobileInput");
+let composingInput = false, ignoreComposedInput = false;
+mobileInput.addEventListener("compositionstart", () => { composingInput = true; });
+mobileInput.addEventListener("compositionend", () => {
+  composingInput = false;
+  ignoreComposedInput = true;
+  setTimeout(() => { ignoreComposedInput = false; }, 0);
+});
+window.addEventListener("keydown", (e) => {
+  if (e.isComposing || e.target === mobileInput || document.activeElement === mobileInput) return;
+  if (e.key === "Backspace"){ handleBackspace(); e.preventDefault(); return; }
+  handleChar(e.key);
+});
+
+document.getElementById("tapCatcher").addEventListener("click", () => { if (state.running) mobileInput.focus(); });
+mobileInput.addEventListener("beforeinput", (e) => {
+  if (e.inputType === "deleteContentBackward") handleBackspace();
+});
+mobileInput.addEventListener("input", () => {
+  const val = mobileInput.value;
+  if (composingInput || ignoreComposedInput){
+    ignoreComposedInput = false;
+    mobileInput.value = "";
+    return;
+  }
+  if (val) handleChar(val[val.length-1]);
+  mobileInput.value = "";
+});
+
+// ---------------- Game loop ----------------
+function tick(ts){
+  if (!state.running) return;
+  if (!state.lastTs) state.lastTs = ts;
+  const dt = (ts - state.lastTs) / 1000;
+  state.lastTs = ts;
+
+  const stageH = document.getElementById("stageArea").clientHeight;
+  state.spawnTimer -= dt;
+  // words fall continuously (no waiting for the previous one to be typed); same constant
+  // speed + fixed spawn interval means an earlier word can never be overtaken by a later one
+  if (state.spawnTimer <= 0 && state.words.length < 6){
+    spawnWord();
+    state.spawnTimer = 1.6;
+  }
+
+  for (const obj of [...state.words]){
+    obj.top += obj.speed * dt;
+    obj.el.style.top = obj.top + "px";
+    if (obj.top > stageH){
+      state.misses++;
+      document.getElementById("missCount").textContent = state.misses;
+      removeWord(obj);
+      if (state.missLimit !== Infinity && state.misses >= state.missLimit){
+        endGame(true);
+        return;
+      }
+    }
+  }
+  requestAnimationFrame(tick);
+}
+
+// ---------------- Start / End ----------------
+function startGame(){
+  state.score = 0; state.misses = 0; state.words = [];
+  state.progressiveStage = 0; state.lastTs = 0; state.spawnTimer = 0; state.paused = false;
+
+  document.getElementById("stageArea").querySelectorAll(".falling, .meaning-pop").forEach(el=>el.remove());
+  document.getElementById("gameOverOverlay").classList.add("hidden");
+  document.getElementById("score").textContent = "0";
+  document.getElementById("missCount").textContent = "0";
+  document.getElementById("missMax").textContent = state.missLimit === Infinity ? "∞" : state.missLimit;
+
+  state.running = true;
+  requestAnimationFrame(tick);
+}
+
+function endGame(showOverlay){
+  state.running = false;
+  state.words.forEach(o => { if (o.audioTimer) clearInterval(o.audioTimer); o.el.remove(); });
+  state.words = [];
+  if (showOverlay){
+    document.getElementById("gameOverTitle").textContent = "Hết lượt!";
+    document.getElementById("gameOverStats").textContent = `Điểm: ${state.score} — Bỏ lỡ: ${state.misses}`;
+    document.getElementById("gameOverOverlay").classList.remove("hidden");
+  }
+}
+
+// ---------------- Boot: show settings popup with blurred demo preview ----------------
+startDemo();
+})();
+</script>
+</body>
+</html>
