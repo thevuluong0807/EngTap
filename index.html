@@ -71,14 +71,6 @@
   @keyframes cloudDriftFar{ 0%{transform:translateX(0)} 100%{transform:translateX(6%)} }
   @keyframes cloudDriftNear{ 0%{transform:translateX(0)} 100%{transform:translateX(-9%)} }
 
-  /* gentle falling rain streaks over the whole scene, kept faint so text stays readable */
-  .rain-layer{
-    position:absolute; inset:-20% -10% -20% -10%; z-index:1; pointer-events:none; opacity:.22;
-    background-image: repeating-linear-gradient(112deg, transparent 0 5px, rgba(210,235,255,.9) 5px 6px, transparent 6px 46px);
-    animation: rainFall .55s linear infinite;
-  }
-  @keyframes rainFall{ from{background-position:0 0} to{background-position:-38px 130px} }
-
   /* small hand-drawn fern tucked in a corner (original vector art, not a photo) */
   .fern-deco{ position:absolute; left:2%; bottom:4%; width:15%; max-width:120px; z-index:1; opacity:.5; pointer-events:none; filter:drop-shadow(0 4px 6px rgba(0,0,0,.25)); }
 
@@ -299,7 +291,6 @@
       <div class="tree-deco tree-side tree-right"></div>
       <div class="tree-deco tree-bottom"></div>
       <div class="grass-strip"></div>
-      <div class="rain-layer"></div>
       <svg class="fern-deco" viewBox="0 0 100 140" aria-hidden="true">
         <path d="M50 138 C50 100 48 70 46 40" fill="none" stroke="#2f5a3a" stroke-width="3" stroke-linecap="round"/>
         <g fill="#4a8a5c">
@@ -472,29 +463,38 @@ function ensureAmbient(){
     const ctx = new (window.AudioContext||window.webkitAudioContext)();
     const master = ctx.createGain();
     master.gain.value = state.musicVolume;
-    master.connect(ctx.destination);
+    const warmth = ctx.createBiquadFilter(); warmth.type = "lowpass"; warmth.frequency.value = 2600;
+    master.connect(warmth); warmth.connect(ctx.destination);
 
-    // rain hiss: looping brown-ish noise through a bandpass filter
+    // faint rain hiss, kept low in the mix so it sits behind the pad instead of hissing over it
     const bufSize = ctx.sampleRate * 2;
     const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
     const data = buf.getChannelData(0);
     let last = 0;
     for (let i=0;i<bufSize;i++){ const white = Math.random()*2-1; last = (last + 0.02*white)/1.02; data[i] = last*3.5; }
     const noise = ctx.createBufferSource(); noise.buffer = buf; noise.loop = true;
-    const rainFilter = ctx.createBiquadFilter(); rainFilter.type = "bandpass"; rainFilter.frequency.value = 1800; rainFilter.Q.value = 0.6;
-    const rainGain = ctx.createGain(); rainGain.gain.value = 0.5;
+    const rainFilter = ctx.createBiquadFilter(); rainFilter.type = "lowpass"; rainFilter.frequency.value = 1000; rainFilter.Q.value = 0.5;
+    const rainGain = ctx.createGain(); rainGain.gain.value = 0.16;
     noise.connect(rainFilter); rainFilter.connect(rainGain); rainGain.connect(master);
     noise.start();
 
-    // soft evolving pad: two detuned sine drones, slowly swelling - ambient wash, no melody
-    const padGain = ctx.createGain(); padGain.gain.value = 0.12; padGain.connect(master);
-    [196, 246.94].forEach((freq, i) => {
+    // slow, melodic pad: four sustained voices that glide gently between two soft chords
+    // (C major <-> D minor) over a 28s cycle - soothing movement, no percussion, no lyrics
+    const padGain = ctx.createGain(); padGain.gain.value = 0.16; padGain.connect(master);
+    const chordA = [130.81, 164.81, 196.00, 261.63]; // C3 E3 G3 C4
+    const chordB = [146.83, 174.61, 220.00, 293.66]; // D3 F3 A3 D4
+    chordA.forEach((freq, i) => {
       const o = ctx.createOscillator(); o.type = "sine"; o.frequency.value = freq;
-      const og = ctx.createGain(); og.gain.value = 0.5;
+      const og = ctx.createGain(); og.gain.value = 0;
       o.connect(og); og.connect(padGain); o.start();
-      const lfo = ctx.createOscillator(); lfo.frequency.value = 0.05 + i*0.02;
-      const lfoGain = ctx.createGain(); lfoGain.gain.value = 0.15;
-      lfo.connect(lfoGain); lfoGain.connect(og.gain); lfo.start();
+      og.gain.linearRampToValueAtTime(0.22, ctx.currentTime + 5);
+      const glide = () => {
+        const t = ctx.currentTime;
+        o.frequency.linearRampToValueAtTime(chordB[i], t + 14);
+        o.frequency.linearRampToValueAtTime(chordA[i], t + 28);
+      };
+      glide();
+      setInterval(glide, 28000);
     });
 
     ambient = { ctx, master };
@@ -719,15 +719,21 @@ async function playPronunciation(word, obj){
     if (state.running && !state.paused && !obj.locked && isActive(obj)) playPronunciation(obj.word, obj);
   }, 5000);
   const requestId = state.audioRequestId;
-  const url = await getCambridgeAudioUrl(word);
-  if (requestId !== state.audioRequestId || state.mode !== "listen" || !state.running || !isActive(obj)) return;
-  if (url){
-    const a = new Audio(url);
+  const key = word.toLowerCase();
+  const cachedUrl = state.audioCache.get(key);
+  if (cachedUrl){
+    const a = new Audio(cachedUrl);
     state.currentAudio = a;
     a.volume = state.voiceVolume;
     a.onended = () => { if (state.currentAudio === a) state.currentAudio = null; };
     a.play().catch(()=>{ if (requestId === state.audioRequestId) speak(word); });
-  } else speak(word);
+    return;
+  }
+  // The Cambridge proxy is slow/unreliable (can hang for seconds before failing), so never
+  // block the word's pronunciation on it - speak it instantly, and let the real audio fetch
+  // finish in the background so a *later* replay of this same word can use it instead.
+  speak(word);
+  if (!state.audioCache.has(key)) getCambridgeAudioUrl(word);
 }
 
 // ---------------- Word pool ----------------
@@ -762,6 +768,15 @@ function spawnWord(){
     lettersLen: word.replace(/[^a-zA-Z']/g,"").length };
   state.words.push(obj);
   render(obj);
+  // clamp left so wide words (long or narrow phones) never hang off-screen and get
+  // clipped by the frame's overflow:hidden - re-measured per word since width varies
+  const stageW = stage.clientWidth;
+  if (stageW){
+    const marginPct = (w.offsetWidth / 2 / stageW) * 100;
+    const clampedLeft = Math.min(Math.max(left, marginPct), 100 - marginPct);
+    w.style.left = clampedLeft + "%";
+    obj.left = clampedLeft;
+  }
   if (state.mode === "meaning") w.querySelector(".meaning-below").textContent = meaning;
   if (state.mode === "listen" && isActive(obj)) activateListenWord(obj);
   return obj;
