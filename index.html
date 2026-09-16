@@ -6,32 +6,35 @@
 <title>EngTap</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%A7%EF%B8%8F%3C/text%3E%3C/svg%3E">
 <style>
+  :root{ --vvh:100vh; } /* kept in sync with the real visible viewport (shrinks when a mobile keyboard opens) */
   *{box-sizing:border-box}
   html,body{height:100%;margin:0}
   body{
     background:#000;
     color:#eef0fa; font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
-    display:flex; align-items:center; justify-content:center; min-height:100vh; padding:16px;
+    display:flex; align-items:center; justify-content:center; min-height:var(--vvh); height:var(--vvh); padding:16px;
     overflow:hidden;
   }
-  .wrap{display:flex; flex-direction:column; align-items:center; gap:14px}
+  .wrap{display:flex; flex-direction:column; align-items:center; gap:14px; max-height:calc(var(--vvh) - 32px)}
   .brand{display:flex; align-items:center; gap:8px; font-size:22px; font-weight:700; letter-spacing:1px; color:#e8f5ee}
   .brand .cloud{font-size:26px; filter:drop-shadow(0 0 8px rgba(120,200,255,.5))}
 
   /* ---- Frame: the whole game lives inside this centered block ---- */
+  /* heights are capped against --vvh (not the raw viewport) so the frame always fits above
+     a mobile on-screen keyboard instead of being pushed/cropped behind it */
   .game-frame{
     position:relative;
-    width:72vw; height:71vh;
+    width:72vw; height:min(71vh, calc(var(--vvh) - 90px));
     min-width:547px; max-width:1032px;
-    min-height:518px; max-height:864px;
+    max-height:864px;
     border-radius:24px; overflow:hidden;
     box-shadow:0 25px 70px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.06);
   }
   @media (max-width:1100px){
-    .game-frame{width:96vw; height:76vh; min-width:460px}
+    .game-frame{width:96vw; height:min(76vh, calc(var(--vvh) - 70px)); min-width:460px}
   }
   @media (max-width:640px){
-    .game-frame{width:98vw; height:81vh; min-width:0; border-radius:18px}
+    .game-frame{width:98vw; height:min(81vh, calc(var(--vvh) - 56px)); min-width:0; min-height:0; border-radius:18px}
     .brand{font-size:18px}
   }
 
@@ -67,6 +70,17 @@
   }
   @keyframes cloudDriftFar{ 0%{transform:translateX(0)} 100%{transform:translateX(6%)} }
   @keyframes cloudDriftNear{ 0%{transform:translateX(0)} 100%{transform:translateX(-9%)} }
+
+  /* gentle falling rain streaks over the whole scene, kept faint so text stays readable */
+  .rain-layer{
+    position:absolute; inset:-20% -10% -20% -10%; z-index:1; pointer-events:none; opacity:.22;
+    background-image: repeating-linear-gradient(112deg, transparent 0 5px, rgba(210,235,255,.9) 5px 6px, transparent 6px 46px);
+    animation: rainFall .55s linear infinite;
+  }
+  @keyframes rainFall{ from{background-position:0 0} to{background-position:-38px 130px} }
+
+  /* small hand-drawn fern tucked in a corner (original vector art, not a photo) */
+  .fern-deco{ position:absolute; left:2%; bottom:4%; width:15%; max-width:120px; z-index:1; opacity:.5; pointer-events:none; filter:drop-shadow(0 4px 6px rgba(0,0,0,.25)); }
 
   /* tree/foliage silhouettes hugging the bottom edge and both sides - layered canopy blobs
      (base + a small lighter glint per clump) that fade out toward the play area so they never
@@ -285,6 +299,16 @@
       <div class="tree-deco tree-side tree-right"></div>
       <div class="tree-deco tree-bottom"></div>
       <div class="grass-strip"></div>
+      <div class="rain-layer"></div>
+      <svg class="fern-deco" viewBox="0 0 100 140" aria-hidden="true">
+        <path d="M50 138 C50 100 48 70 46 40" fill="none" stroke="#2f5a3a" stroke-width="3" stroke-linecap="round"/>
+        <g fill="#4a8a5c">
+          <path d="M47 100 C30 95 18 82 12 66 C30 68 44 80 48 96 Z"/>
+          <path d="M46 78 C64 72 76 58 80 42 C62 46 49 60 45 76 Z"/>
+          <path d="M47 58 C30 53 19 41 14 27 C31 29 44 40 48 54 Z"/>
+          <path d="M46 40 C62 35 72 24 76 10 C60 13 49 24 45 38 Z"/>
+        </g>
+      </svg>
     </div>
 
     <div id="gameWrap" class="blurred">
@@ -353,8 +377,8 @@
           <input type="range" id="voiceVolume" min="0" max="100" value="100">
         </div>
         <div class="group">
-          <label class="title">Âm lượng nhạc nền <span style="opacity:.6; text-transform:none">(sắp có)</span></label>
-          <input type="range" id="musicVolume" min="0" max="100" value="60" disabled>
+          <label class="title">Âm lượng nhạc nền</label>
+          <input type="range" id="musicVolume" min="0" max="100" value="60">
         </div>
         <button class="btn-main" id="resumeBtn">▶ Tiếp tục</button>
         <button class="btn-sec" id="pauseRestartBtn" style="width:100%; margin-top:10px; padding:10px">Kết thúc</button>
@@ -370,7 +394,7 @@
 "use strict";
 
 // ---------------- Vocabulary ----------------
-// Main word bank lives in words-db.js (304 words, crawled from public CEFR word lists +
+// Main word bank lives in words-db.js (~1984 words with IPA, crawled from public CEFR word lists +
 // translated via the MyMemory API) and is loaded as a plain <script> tag above this one so it
 // still works when the page is opened directly as a file:// URL (fetch() of a local JSON file
 // is blocked by CORS in that case, a <script> global is not). This tiny inline list is only a
@@ -383,6 +407,22 @@ const FALLBACK_WORDS = {
 };
 const WORDS = (typeof WORDS_DB !== "undefined") ? WORDS_DB : FALLBACK_WORDS;
 const LEVEL_ORDER = ["B1","B2","C1","C2"];
+
+// ---------------- Keep --vvh synced to the real visible viewport ----------------
+// On mobile, focusing mobileInput opens the on-screen keyboard, which shrinks
+// window.visualViewport.height without shrinking the layout viewport (100vh stays the same).
+// Without this, the game-frame (sized off vh) keeps its full height and its bottom portion
+// - part of the gameplay area - ends up hidden behind the keyboard.
+(function syncViewportHeight(){
+  function sync(){
+    const h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+    document.documentElement.style.setProperty("--vvh", h + "px");
+  }
+  sync();
+  window.visualViewport?.addEventListener("resize", sync);
+  window.addEventListener("resize", sync);
+  window.addEventListener("orientationchange", sync);
+})();
 
 // ---------------- Nature background particles ----------------
 (function initLeaves(){
@@ -423,6 +463,45 @@ function playBubblePop(){
     o.connect(g); g.connect(ctx.destination); o.start(); o.stop(now + .14); o.onended = () => ctx.close();
   }catch(e){}
 }
+
+// ---------------- Ambient background music (procedural rain + soft pad, no external audio file) ----------------
+let ambient = null;
+function ensureAmbient(){
+  if (ambient) return ambient;
+  try{
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    const master = ctx.createGain();
+    master.gain.value = state.musicVolume;
+    master.connect(ctx.destination);
+
+    // rain hiss: looping brown-ish noise through a bandpass filter
+    const bufSize = ctx.sampleRate * 2;
+    const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    let last = 0;
+    for (let i=0;i<bufSize;i++){ const white = Math.random()*2-1; last = (last + 0.02*white)/1.02; data[i] = last*3.5; }
+    const noise = ctx.createBufferSource(); noise.buffer = buf; noise.loop = true;
+    const rainFilter = ctx.createBiquadFilter(); rainFilter.type = "bandpass"; rainFilter.frequency.value = 1800; rainFilter.Q.value = 0.6;
+    const rainGain = ctx.createGain(); rainGain.gain.value = 0.5;
+    noise.connect(rainFilter); rainFilter.connect(rainGain); rainGain.connect(master);
+    noise.start();
+
+    // soft evolving pad: two detuned sine drones, slowly swelling - ambient wash, no melody
+    const padGain = ctx.createGain(); padGain.gain.value = 0.12; padGain.connect(master);
+    [196, 246.94].forEach((freq, i) => {
+      const o = ctx.createOscillator(); o.type = "sine"; o.frequency.value = freq;
+      const og = ctx.createGain(); og.gain.value = 0.5;
+      o.connect(og); og.connect(padGain); o.start();
+      const lfo = ctx.createOscillator(); lfo.frequency.value = 0.05 + i*0.02;
+      const lfoGain = ctx.createGain(); lfoGain.gain.value = 0.15;
+      lfo.connect(lfoGain); lfoGain.connect(og.gain); lfo.start();
+    });
+
+    ambient = { ctx, master };
+  }catch(e){}
+  return ambient;
+}
+function setAmbientVolume(v){ if (ambient) ambient.master.gain.value = v; }
 
 // ---------------- State ----------------
 const state = {
@@ -483,6 +562,7 @@ function closeSettingsAndPlay(){
   state.hintEnabled = hintChk.checked;
 
   playDroplet();
+  ensureAmbient();
   panel.classList.remove("pop-in");
   panel.classList.add("pop-out");
   setTimeout(() => {
@@ -500,7 +580,7 @@ const pausePanel = document.getElementById("pausePanel");
 const voiceVolumeInput = document.getElementById("voiceVolume");
 const musicVolumeInput = document.getElementById("musicVolume");
 voiceVolumeInput.addEventListener("input", () => { state.voiceVolume = voiceVolumeInput.value / 100; });
-musicVolumeInput.addEventListener("input", () => { state.musicVolume = musicVolumeInput.value / 100; });
+musicVolumeInput.addEventListener("input", () => { state.musicVolume = musicVolumeInput.value / 100; setAmbientVolume(state.musicVolume); });
 
 function pauseGame(){
   state.paused = true;
@@ -634,6 +714,10 @@ function stopPronunciation(){
 async function playPronunciation(word, obj){
   if (state.mode !== "listen" || !state.running || !obj || !isActive(obj)) return;
   stopPronunciation();
+  if (obj.audioTimer) clearTimeout(obj.audioTimer);
+  obj.audioTimer = setTimeout(() => {
+    if (state.running && !state.paused && !obj.locked && isActive(obj)) playPronunciation(obj.word, obj);
+  }, 5000);
   const requestId = state.audioRequestId;
   const url = await getCambridgeAudioUrl(word);
   if (requestId !== state.audioRequestId || state.mode !== "listen" || !state.running || !isActive(obj)) return;
@@ -708,11 +792,7 @@ function render(obj){
 
 function activateListenWord(obj){
   if (state.mode !== "listen" || !obj || !isActive(obj)) return;
-  if (obj.audioTimer) clearInterval(obj.audioTimer);
   playPronunciation(obj.word, obj);
-  obj.audioTimer = setInterval(() => {
-    if (state.running && !state.paused && !obj.locked && isActive(obj)) playPronunciation(obj.word, obj);
-  }, 5000);
 }
 
 document.getElementById("stageArea").addEventListener("click", (e)=>{
@@ -724,7 +804,7 @@ document.getElementById("stageArea").addEventListener("click", (e)=>{
 });
 
 function removeWord(obj, {popMeaning=false} = {}){
-  if (obj.audioTimer) clearInterval(obj.audioTimer);
+  if (obj.audioTimer) clearTimeout(obj.audioTimer);
   if (isActive(obj)) stopPronunciation();
   if (popMeaning){
     const stage = document.getElementById("stageArea");
@@ -916,7 +996,7 @@ function startGame(){
 
 function endGame(showOverlay){
   state.running = false;
-  state.words.forEach(o => { if (o.audioTimer) clearInterval(o.audioTimer); o.el.remove(); });
+  state.words.forEach(o => { if (o.audioTimer) clearTimeout(o.audioTimer); o.el.remove(); });
   state.words = [];
   if (showOverlay){
     document.getElementById("gameOverTitle").textContent = "Hết lượt!";
